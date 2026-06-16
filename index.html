@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MoonShot ToonMotion AI - Cartoon Video Generation Showcase</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>⚖️</text></svg>">
+  <meta name="description" content="Explore and generate stunning cartoon videos from text prompts using MoonShot ToonMotion AI. Preview generation models, tweak parameters, and watch high-fidelity animation outputs.">
+  <link rel="stylesheet" href="style.css">
+  <!-- Google Fonts: Inter and Fira Code for terminal -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <!-- Lucide Icons for premium feel -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+</head>
+<body>
+  <!-- Background Ambient Glows -->
+  <div class="ambient-glow glow-1"></div>
+  <div class="ambient-glow glow-2"></div>
+  <div class="ambient-glow glow-3"></div>
+
+  <!-- Header Section -->
+  <header>
+    <div class="header-container">
+      <div class="logo-area">
+        <div class="logo-icon">
+          <i data-lucide="sparkles"></i>
+        </div>
+        <div class="logo-text">
+          <h1>MoonShot <span>ToonMotion</span></h1>
+          <span class="version-tag">v1.5-preview-502</span>
+        </div>
+      </div>
+      <div class="system-status">
+        <span class="status-indicator online"></span>
+        <span class="status-text">Server: Online (Bypassed 502)</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Content Layout -->
+  <main class="dashboard">
+    <!-- Left Panel: Topics Showcase list -->
+    <section class="panel topics-panel" aria-label="Cartoon Video Topics">
+      <div class="panel-header">
+        <i data-lucide="layers"></i>
+        <h2>Creative Topics</h2>
+      </div>
+      <div class="topics-list" id="topicsList">
+        <!-- Topics will be dynamically populated by app.js -->
+      </div>
+    </section>
+
+    <!-- Center Panel: The Interactive Video Player -->
+    <section class="panel player-panel" aria-label="AI Video Player Preview">
+      <div class="player-container" id="playerContainer">
+        <!-- Video Canvas/Image Area -->
+        <div class="video-display" id="videoDisplay">
+          <div class="loading-overlay" id="loadingOverlay">
+            <div class="spinner-container">
+              <div class="custom-spinner"></div>
+              <p class="loading-phase" id="loadingPhase">Initializing Diffusion Model...</p>
+              <div class="progress-bar-container">
+                <div class="progress-bar-fill" id="progressBarFill"></div>
+              </div>
+              <span class="progress-percent" id="progressPercent">0%</span>
+            </div>
+          </div>
+          <img src="" alt="Video Preview" id="playerBgImage" class="player-bg">
+          <canvas id="motionCanvas" class="motion-canvas"></canvas>
+          
+          <!-- Splash Start Button -->
+          <button class="splash-play-btn" id="splashPlayBtn" aria-label="Play Video Preview">
+            <i data-lucide="play"></i>
+          </button>
+        </div>
+
+        <!-- Player Control Bar -->
+        <div class="player-controls">
+          <div class="timeline-container">
+            <input type="range" id="timeline" class="timeline-slider" min="0" max="100" value="0">
+            <div class="timeline-progress" id="timelineProgress"></div>
+          </div>
+          <div class="controls-row">
+            <div class="control-group">
+              <button class="control-btn" id="playBtn" title="Play/Pause">
+                <i data-lucide="play" id="playIcon"></i>
+              </button>
+              <button class="control-btn" id="loopBtn" title="Toggle Loop">
+                <i data-lucide="repeat" class="active"></i>
+              </button>
+              <span class="time-display" id="timeDisplay">0:00 / 0:04</span>
+            </div>
+            <div class="control-group">
+              <div class="volume-container">
+                <button class="control-btn" id="volumeBtn" title="Mute/Unmute">
+                  <i data-lucide="volume-2" id="volumeIcon"></i>
+                </button>
+                <input type="range" id="volumeSlider" class="volume-slider" min="0" max="100" value="70">
+              </div>
+              <button class="control-btn" id="fullscreenBtn" title="Fullscreen">
+                <i data-lucide="maximize"></i>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Realtime generation log view -->
+      <div class="terminal-container">
+        <div class="terminal-header">
+          <div class="terminal-dots">
+            <span class="dot red"></span>
+            <span class="dot yellow"></span>
+            <span class="dot green"></span>
+          </div>
+          <span class="terminal-title">ToonMotion Log Console</span>
+          <button class="clear-log-btn" id="clearLogBtn"><i data-lucide="trash-2"></i> Clear</button>
+        </div>
+        <div class="terminal-body" id="terminalConsole">
+          <!-- Terminal logs will print here -->
+        </div>
+      </div>
+    </section>
+
+    <!-- Right Panel: Configurations and Prompt Details -->
+    <section class="panel config-panel" aria-label="Generation Parameters">
+      <div class="panel-header">
+        <i data-lucide="sliders"></i>
+        <h2>Parameters</h2>
+      </div>
+      
+      <!-- Prompt Editor -->
+      <div class="config-group">
+        <label for="promptTextarea">Text Prompt</label>
+        <div class="textarea-wrapper">
+          <textarea id="promptTextarea" placeholder="Enter custom prompt details..."></textarea>
+          <span class="char-count" id="charCount">0/500</span>
+        </div>
+      </div>
+
+      <!-- Settings Cards -->
+      <div class="settings-grid">
+        <div class="setting-item">
+          <label for="motionStrength">Motion Weight</label>
+          <div class="slider-val-wrapper">
+            <input type="range" id="motionStrength" min="1" max="10" step="0.5" value="5">
+            <span class="slider-badge" id="motionWeightVal">5.0</span>
+          </div>
+        </div>
+
+        <div class="setting-item">
+          <label for="aspectRatio">Aspect Ratio</label>
+          <select id="aspectRatio">
+            <option value="16:9">16:9 (Cinema)</option>
+            <option value="9:16">9:16 (Portrait)</option>
+            <option value="1:1">1:1 (Square)</option>
+          </select>
+        </div>
+
+        <div class="setting-item">
+          <label for="seedInput">Generation Seed</label>
+          <div class="input-with-action">
+            <input type="number" id="seedInput" value="40829104">
+            <button class="action-btn" id="randomSeedBtn" title="Random Seed">
+              <i data-lucide="shuffle"></i>
+            </button>
+          </div>
+        </div>
+
+        <div class="setting-item">
+          <label for="frameRate">Target Framerate</label>
+          <select id="frameRate">
+            <option value="24">24 FPS (Cinematic)</option>
+            <option value="30">30 FPS (Standard)</option>
+            <option value="60">60 FPS (Ultra-smooth)</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Action Button -->
+      <button class="generate-btn" id="generateBtn">
+        <i data-lucide="play-circle"></i>
+        <span>Synthesize Video Loop</span>
+      </button>
+
+      <!-- Topic Info Details -->
+      <div class="topic-info-box">
+        <h3>About This Topic</h3>
+        <p id="topicDescription">Select a creative topic to explore the video-generated details and synthesized motion paths.</p>
+      </div>
+    </section>
+  </main>
+
+  <!-- Footer Info -->
+  <footer>
+    <p>&copy; 2026 MoonShot AI Labs. Powered by ToonMotion Diffusion v1.5.</p>
+  </footer>
+
+  <script src="app.js"></script>
+</body>
+</html>
