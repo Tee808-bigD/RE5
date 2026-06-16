@@ -103,6 +103,13 @@ const elements = {
   playerContainer: document.getElementById("playerContainer")
 };
 
+// Web Audio API State
+let audioCtx = null;
+let masterGain = null;
+let currentSynthIntervals = [];
+let currentOscillators = [];
+let noiseNode = null;
+
 // Canvas context
 const ctx = elements.motionCanvas.getContext("2d");
 
@@ -506,6 +513,307 @@ function drawSpinningPropeller(center, radius, angle) {
   ctx.restore();
 }
 
+// Web Audio API Sound Generator & Synthesizers
+function initAudio() {
+  if (audioCtx) return;
+  audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  masterGain = audioCtx.createGain();
+  masterGain.connect(audioCtx.destination);
+  updateAudioVolume();
+}
+
+function updateAudioVolume() {
+  if (!masterGain) return;
+  if (state.isMuted) {
+    masterGain.gain.setValueAtTime(0, audioCtx.currentTime);
+  } else {
+    masterGain.gain.setValueAtTime(state.volume / 100, audioCtx.currentTime);
+  }
+}
+
+function stopTopicAudio() {
+  currentSynthIntervals.forEach(clearTimeout);
+  currentSynthIntervals.forEach(clearInterval);
+  currentSynthIntervals = [];
+
+  currentOscillators.forEach(osc => {
+    try { osc.stop(); } catch(e) {}
+    try { osc.disconnect(); } catch(e) {}
+  });
+  currentOscillators = [];
+
+  if (noiseNode) {
+    try { noiseNode.stop(); } catch(e) {}
+    try { noiseNode.disconnect(); } catch(e) {}
+    noiseNode = null;
+  }
+}
+
+function playSciFiAudio() {
+  if (!audioCtx) return;
+  let noteIndex = 0;
+  // Bassline notes frequencies (E2, E2, G2, G2, A2, A2, B2, E2)
+  const notes = [82.41, 82.41, 98.00, 98.00, 110.00, 110.00, 123.47, 82.41];
+
+  const interval = setInterval(() => {
+    if (!state.isPlaying || state.activeTopic.id !== "scifi") return;
+    let now = audioCtx.currentTime;
+
+    // Play bass note (sawtooth with filter envelope)
+    let osc = audioCtx.createOscillator();
+    let gain = audioCtx.createGain();
+    let filter = audioCtx.createBiquadFilter();
+
+    osc.type = "sawtooth";
+    osc.frequency.setValueAtTime(notes[noteIndex], now);
+
+    filter.type = "lowpass";
+    filter.frequency.setValueAtTime(150 + Math.sin(now * 2) * 100, now);
+    filter.frequency.linearRampToValueAtTime(700, now + 0.2);
+
+    gain.gain.setValueAtTime(0.06, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.22);
+
+    osc.connect(filter);
+    filter.connect(gain);
+    gain.connect(masterGain);
+
+    osc.start(now);
+    osc.stop(now + 0.23);
+    currentOscillators.push(osc);
+
+    // Play Kick Drum on beat 1 and 5
+    if (noteIndex === 0 || noteIndex === 4) {
+      let kick = audioCtx.createOscillator();
+      let kickGain = audioCtx.createGain();
+
+      kick.frequency.setValueAtTime(150, now);
+      kick.frequency.exponentialRampToValueAtTime(0.01, now + 0.15);
+
+      kickGain.gain.setValueAtTime(0.28, now);
+      kickGain.gain.exponentialRampToValueAtTime(0.001, now + 0.15);
+
+      kick.connect(kickGain);
+      kickGain.connect(masterGain);
+
+      kick.start(now);
+      kick.stop(now + 0.16);
+      currentOscillators.push(kick);
+    }
+
+    noteIndex = (noteIndex + 1) % notes.length;
+  }, 250);
+
+  currentSynthIntervals.push(interval);
+}
+
+function playForestAudio() {
+  if (!audioCtx) return;
+
+  const playPad = () => {
+    if (!state.isPlaying || state.activeTopic.id !== "forest") return;
+    let now = audioCtx.currentTime;
+
+    // Chord: Cmaj9 (C3, G3, B3, D4, E4)
+    const chord = [130.81, 196.00, 246.94, 293.66, 329.63];
+
+    chord.forEach(freq => {
+      let osc = audioCtx.createOscillator();
+      let gain = audioCtx.createGain();
+
+      osc.type = "sine";
+      osc.frequency.setValueAtTime(freq, now);
+
+      gain.gain.setValueAtTime(0.001, now);
+      gain.gain.linearRampToValueAtTime(0.03, now + 2.0); // 2s attack
+      gain.gain.setValueAtTime(0.03, now + 4.0);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 7.9); // 4s decay
+
+      osc.connect(gain);
+      gain.connect(masterGain);
+
+      osc.start(now);
+      osc.stop(now + 8);
+      currentOscillators.push(osc);
+    });
+  };
+
+  playPad();
+  const padInterval = setInterval(playPad, 8000);
+  currentSynthIntervals.push(padInterval);
+
+  // Random high chimes
+  const bellInterval = setInterval(() => {
+    if (!state.isPlaying || state.activeTopic.id !== "forest") return;
+    let now = audioCtx.currentTime;
+
+    const bells = [880.00, 987.77, 1174.66, 1318.51, 1567.98];
+    const freq = bells[Math.floor(Math.random() * bells.length)];
+
+    let osc = audioCtx.createOscillator();
+    let gain = audioCtx.createGain();
+
+    osc.type = "sine";
+    osc.frequency.setValueAtTime(freq, now);
+
+    gain.gain.setValueAtTime(0.02, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 1.5);
+
+    osc.connect(gain);
+    gain.connect(masterGain);
+
+    osc.start(now);
+    osc.stop(now + 1.6);
+    currentOscillators.push(osc);
+  }, 1300);
+
+  currentSynthIntervals.push(bellInterval);
+}
+
+function playCozyAudio() {
+  if (!audioCtx) return;
+  let now = audioCtx.currentTime;
+
+  // Generate rain buffer
+  const bufferSize = audioCtx.sampleRate * 2;
+  const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+  const data = buffer.getChannelData(0);
+  for (let i = 0; i < bufferSize; i++) {
+    data[i] = Math.random() * 2 - 1;
+  }
+
+  noiseNode = audioCtx.createBufferSource();
+  noiseNode.buffer = buffer;
+  noiseNode.loop = true;
+
+  let filter = audioCtx.createBiquadFilter();
+  filter.type = "lowpass";
+  filter.frequency.setValueAtTime(450, now);
+
+  let noiseGain = audioCtx.createGain();
+  noiseGain.gain.setValueAtTime(0.07, now); // soft rain
+
+  noiseNode.connect(filter);
+  filter.connect(noiseGain);
+  noiseGain.connect(masterGain);
+  noiseNode.start(now);
+
+  // Relaxing lo-fi chords (Fmaj7 -> G6 -> Em7 -> Am7)
+  const chords = [
+    [174.61, 261.63, 329.63],
+    [196.00, 293.66, 392.00],
+    [164.81, 246.94, 329.63],
+    [220.00, 261.63, 329.63]
+  ];
+  let chordIndex = 0;
+
+  const playPianoChord = () => {
+    if (!state.isPlaying || state.activeTopic.id !== "cozy") return;
+    let time = audioCtx.currentTime;
+
+    chords[chordIndex].forEach((freq, idx) => {
+      let delay = idx * 0.08;
+      let osc = audioCtx.createOscillator();
+      let gain = audioCtx.createGain();
+
+      osc.type = "triangle";
+      osc.frequency.setValueAtTime(freq, time + delay);
+
+      gain.gain.setValueAtTime(0.001, time + delay);
+      gain.gain.linearRampToValueAtTime(0.05, time + delay + 0.05);
+      gain.gain.exponentialRampToValueAtTime(0.001, time + delay + 2.2);
+
+      osc.connect(gain);
+      gain.connect(masterGain);
+
+      osc.start(time + delay);
+      osc.stop(time + delay + 2.3);
+      currentOscillators.push(osc);
+    });
+
+    chordIndex = (chordIndex + 1) % chords.length;
+  };
+
+  playPianoChord();
+  const pianoInterval = setInterval(playPianoChord, 2600);
+  currentSynthIntervals.push(pianoInterval);
+}
+
+function playSteampunkAudio() {
+  if (!audioCtx) return;
+  let now = audioCtx.currentTime;
+
+  // Drone horn
+  const playHorn = () => {
+    if (!state.isPlaying || state.activeTopic.id !== "steampunk") return;
+    let time = audioCtx.currentTime;
+
+    [65.41, 98.00].forEach(freq => {
+      let osc = audioCtx.createOscillator();
+      let filter = audioCtx.createBiquadFilter();
+      let gain = audioCtx.createGain();
+
+      osc.type = "sawtooth";
+      osc.frequency.setValueAtTime(freq, time);
+
+      filter.type = "lowpass";
+      filter.frequency.setValueAtTime(200, time);
+      filter.frequency.exponentialRampToValueAtTime(500, time + 0.5);
+      filter.frequency.exponentialRampToValueAtTime(120, time + 2.8);
+
+      gain.gain.setValueAtTime(0.001, time);
+      gain.gain.linearRampToValueAtTime(0.06, time + 0.4);
+      gain.gain.linearRampToValueAtTime(0.06, time + 2.0);
+      gain.gain.exponentialRampToValueAtTime(0.001, time + 3.0);
+
+      osc.connect(filter);
+      filter.connect(gain);
+      gain.connect(masterGain);
+
+      osc.start(time);
+      osc.stop(time + 3.1);
+      currentOscillators.push(osc);
+    });
+  };
+
+  playHorn();
+  const hornInterval = setInterval(playHorn, 9500);
+  currentSynthIntervals.push(hornInterval);
+
+  // Steam chugging (noise envelope)
+  const bufferSize = audioCtx.sampleRate * 0.5;
+  const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+  const data = buffer.getChannelData(0);
+  for (let i = 0; i < bufferSize; i++) {
+    data[i] = Math.random() * 2 - 1;
+  }
+
+  const chugInterval = setInterval(() => {
+    if (!state.isPlaying || state.activeTopic.id !== "steampunk") return;
+    let time = audioCtx.currentTime;
+
+    let source = audioCtx.createBufferSource();
+    source.buffer = buffer;
+
+    let filter = audioCtx.createBiquadFilter();
+    filter.type = "bandpass";
+    filter.frequency.setValueAtTime(800, time);
+
+    let gain = audioCtx.createGain();
+    gain.gain.setValueAtTime(0.05, time);
+    gain.gain.exponentialRampToValueAtTime(0.001, time + 0.25);
+
+    source.connect(filter);
+    filter.connect(gain);
+    gain.connect(masterGain);
+
+    source.start(time);
+    source.stop(time + 0.28);
+  }, 500);
+
+  currentSynthIntervals.push(chugInterval);
+}
+
 // Animation loop callback
 function animationLoop(timestamp) {
   if (!state.isPlaying) return;
@@ -544,6 +852,18 @@ function playVideo() {
   // Apply image dynamic scale classes
   elements.playerBgImage.classList.add(state.activeTopic.class);
 
+  // Initialize and trigger synthesized audio
+  initAudio();
+  if (audioCtx && audioCtx.state === 'suspended') {
+    audioCtx.resume();
+  }
+  updateAudioVolume();
+  stopTopicAudio();
+  if (state.activeTopic.id === "scifi") playSciFiAudio();
+  else if (state.activeTopic.id === "forest") playForestAudio();
+  else if (state.activeTopic.id === "cozy") playCozyAudio();
+  else if (state.activeTopic.id === "steampunk") playSteampunkAudio();
+
   addLog(`Playing video synthesis preview...`, "info");
   
   state.animationFrameId = requestAnimationFrame(animationLoop);
@@ -561,6 +881,9 @@ function pauseVideo() {
   
   // Remove scale animation
   elements.playerBgImage.classList.remove(state.activeTopic.class);
+
+  // Stop active synthesized audio loops
+  stopTopicAudio();
 
   addLog(`Playback paused.`, "info");
 
@@ -622,6 +945,7 @@ function setupEventListeners() {
       muteVolume(false);
       state.isMuted = false;
     }
+    updateAudioVolume();
   });
 
   elements.volumeBtn.addEventListener("click", () => {
@@ -631,6 +955,7 @@ function setupEventListeners() {
     } else {
       muteVolume(false);
     }
+    updateAudioVolume();
   });
 
   // Fullscreen button
@@ -707,6 +1032,7 @@ function muteVolume(mute) {
     addLog(`Audio output enabled: Vol ${state.volume}%`, "info");
   }
   lucide.createIcons({ attrs: { id: 'volumeIcon' } });
+  updateAudioVolume();
 }
 
 // Simulated Video Generation Synthesis
